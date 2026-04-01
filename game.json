@@ -1,0 +1,8 @@
+{
+  "title": "Sudoku",
+  "description": "Challenge your brain with this classic number placement puzzle.",
+  "keywords": ["sudoku", "puzzle", "numbers", "logic", "brain"],
+  "category": "Puzzle",
+  "author": "PewPlay",
+  "playMode": "SinglePlayer"
+}
