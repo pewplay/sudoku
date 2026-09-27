@@ -2,6 +2,32 @@
   "$schema": "https://raw.githubusercontent.com/pewplay/pewplay/main/schema/game.schema.json",
   "title": "Sudoku",
   "description": "Challenge your brain with this classic number placement puzzle.",
+  "about": "Sudoku is a browser game where you fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once.\n\nStart a round in your browser and use the controls below to play.",
+  "howToPlay": "Fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once.",
+  "controls": [
+    {
+      "input": "Click / tap",
+      "action": "Select a cell"
+    },
+    {
+      "input": "Keyboard / on-screen digits",
+      "action": "Enter a number"
+    }
+  ],
+  "tips": [
+    "Use click / tap to select a cell.",
+    "Try another round to practice the timing and strategy."
+  ],
+  "faq": [
+    {
+      "question": "How do I play Sudoku?",
+      "answer": "Fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once."
+    },
+    {
+      "question": "Can I play Sudoku in a browser?",
+      "answer": "Yes. Open the game page and play without installing an app."
+    }
+  ],
   "category": "Puzzle",
   "tags": [
     "sudoku",
@@ -10,6 +36,9 @@
     "logic",
     "brain"
   ],
-  "author": "PewPlay",
-  "playMode": "SinglePlayer"
+  "playMode": "SinglePlayer",
+  "orientation": "any",
+  "cover": "cover.png",
+  "draft": true,
+  "author": "PewPlay"
 }
