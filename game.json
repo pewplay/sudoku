@@ -1,44 +1,61 @@
 {
   "$schema": "https://raw.githubusercontent.com/pewplay/pewplay/main/schema/game.schema.json",
   "title": "Sudoku",
-  "description": "Challenge your brain with this classic number placement puzzle.",
-  "about": "Sudoku is a browser game where you fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once.\n\nStart a round in your browser and use the controls below to play.",
-  "howToPlay": "Fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once.",
+  "description": "Fill the 9×9 grid so every row, column and box holds the digits 1 to 9 in this clean, free Sudoku puzzle you play in your browser.",
+  "about": "Sudoku is the classic number logic puzzle, here in a clean and distraction-free version. Every game deals a fresh 9×9 board with 30 given digits, and your job is to fill the remaining 51 cells so that each row, each column and each 3×3 box contains the numbers 1 to 9 exactly once.\n\nTap a cell to open the number pad and pick a digit. The board highlights the row, column and box of the selected cell and shows matching numbers in blue, while a digit that clashes with another one turns red straight away. Pencil mode lets you jot up to four candidate numbers in a cell before you commit, and a counter tracks filled cells and elapsed seconds.\n\nIt is a relaxing way to train your logic for a few minutes, whether you are new to Sudoku or solve one every morning.",
+  "howToPlay": "Select an empty cell and choose a number from the pad that appears. Each row, column and 3×3 box must contain the digits 1 to 9 with no repeats; conflicting numbers are shown in red. Fill all 81 cells without conflicts to complete the puzzle.",
   "controls": [
     {
-      "input": "Click / tap",
-      "action": "Select a cell"
+      "input": "Click / Tap cell",
+      "action": "Select a cell and open the number pad"
     },
     {
-      "input": "Keyboard / on-screen digits",
-      "action": "Enter a number"
+      "input": "Pad 1–9",
+      "action": "Place a number in the selected cell"
+    },
+    {
+      "input": "Pad X",
+      "action": "Clear the cell"
+    },
+    {
+      "input": "Pad ?",
+      "action": "Toggle pencil mode for notes"
     }
   ],
   "tips": [
-    "Use click / tap to select a cell.",
-    "Try another round to practice the timing and strategy."
+    "Start with rows, columns or boxes that already have many digits: the missing ones are easier to find.",
+    "Watch the blue highlights after selecting a cell to see where a number already appears.",
+    "Use pencil mode to note two or three candidates in tricky cells instead of guessing.",
+    "A red cell means the number clashes with another one in its row, column or box, so fix it before moving on."
   ],
   "faq": [
     {
-      "question": "How do I play Sudoku?",
-      "answer": "Fill the grid so each row, column and 3 × 3 box contains each digit from 1 to 9 once."
+      "question": "Is Sudoku free to play?",
+      "answer": "Yes. Sudoku is completely free and runs in your browser, with no download or sign-up."
     },
     {
-      "question": "Can I play Sudoku in a browser?",
-      "answer": "Yes. Open the game page and play without installing an app."
+      "question": "Can I play Sudoku on my phone or tablet?",
+      "answer": "Yes. The board scales to fit the screen and you play entirely by tapping cells and the on-screen number pad."
+    },
+    {
+      "question": "Do I get a new puzzle every time?",
+      "answer": "Yes. Each game generates a new board with 30 starting digits, and the Play Again button deals a fresh one when you finish."
     }
   ],
   "category": "Puzzle",
   "tags": [
     "sudoku",
-    "puzzle",
-    "numbers",
     "logic",
-    "brain"
+    "numbers",
+    "brain teaser",
+    "classic"
   ],
+  "author": "PewPlay",
   "playMode": "SinglePlayer",
   "orientation": "any",
   "cover": "cover.png",
-  "draft": true,
-  "author": "PewPlay"
+  "screenshots": [
+    "screenshots/1.png",
+    "screenshots/2.png"
+  ]
 }

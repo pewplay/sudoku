@@ -240,7 +240,7 @@ Sudoku.prototype.drawBoard = function () {
     $('<div></div>').addClass('num note').text('?').appendTo(sudoku_console);
 
     //draw gameover
-    var sudoku_gameover = $('<div class="gameover_container"><div class="gameover">Congratulation! <button class="restart">Play Again</button></div></div>');
+    var sudoku_gameover = $('<div class="gameover_container"><div class="gameover">Congratulations! <button class="restart">Play Again</button></div></div>');
 
     //add all to sudoku container
     sudoku_console_cotainer.appendTo('#' + this.id).hide();
@@ -265,7 +265,7 @@ Sudoku.prototype.resizeWindow = function () {
     var screen_wr = screen.w + s_dim.h + b_pos.top + 10;
 
     if (screen_wr > screen.h) {
-        $('#' + this.id + ' .sudoku_board').css('width', (screen.h - b_pos.top - s_dim.h - 14));
+        $('#' + this.id + ' .sudoku_board').css('width', (screen.h - b_pos.top - s_dim.h - 16));
         $('#' + this.id + ' .board_console').css('width', (b_dim.h / 2));
     } else {
         $('#' + this.id + ' .sudoku_board').css('width', '98%');
@@ -541,7 +541,7 @@ Sudoku.prototype.run = function () {
         }
     });
 
-    $(window).resize(function () {
+    $(window).off('resize.sudoku').on('resize.sudoku', function () {
         t.resizeWindow();
     });
 };
@@ -550,8 +550,6 @@ Sudoku.prototype.run = function () {
 $(function () {
     console.time("loading time");
 
-    //init        
-    $('head').append('<meta name="viewport" content="initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,width=device-width,height=device-height,target-densitydpi=device-dpi,user-scalable=yes" />');
 
     //game  
     var game = new Sudoku({
@@ -569,8 +567,8 @@ $(function () {
         $('#sudoku_menu').toggleClass("open-sidebar");
     });
 
-    //restart game
-    $('#' + game.id + ' .restart').on('click', function () {
+    //restart game (delegated: the board is redrawn on every new game)
+    $('#' + game.id).on('click', '.restart', function () {
         game.init().run();
     });
 
