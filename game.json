@@ -1,8 +1,15 @@
 {
+  "$schema": "https://raw.githubusercontent.com/pewplay/pewplay/main/schema/game.schema.json",
   "title": "Sudoku",
   "description": "Challenge your brain with this classic number placement puzzle.",
-  "keywords": ["sudoku", "puzzle", "numbers", "logic", "brain"],
   "category": "Puzzle",
+  "tags": [
+    "sudoku",
+    "puzzle",
+    "numbers",
+    "logic",
+    "brain"
+  ],
   "author": "PewPlay",
   "playMode": "SinglePlayer"
 }
