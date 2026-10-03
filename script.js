@@ -1,581 +1,540 @@
-/* Work in progress */
+/* Sudoku — PewPlay edition (vanilla JS, no dependencies) */
+(function () {
+  'use strict';
 
-/**
-Sudoku game
-*/
-function Sudoku(params) {
-    var t = this;
+  var KEY_SAVE = 'sudoku:save';
+  var KEY_BEST = 'sudoku:best';
+  var KEY_DIFF = 'sudoku:difficulty';
 
-    this.INIT = 0;
-    this.RUNNING = 1;
-    this.END = 2;
+  var DIFFS = {
+    easy:   { name: 'Easy',   givens: 40 },
+    medium: { name: 'Medium', givens: 33 },
+    hard:   { name: 'Hard',   givens: 28 },
+    expert: { name: 'Expert', givens: 24 }
+  };
 
-    this.id = params.id || 'sudoku_container';
-    this.displaySolution = params.displaySolution || 0;
-    this.displaySolutionOnly = params.displaySolutionOnly || 0;
-    this.displayTitle = params.displayTitle || 0;
-    this.highlight = params.highlight || 0;
-    this.fixCellsNr = params.fixCellsNr || 32;
-    this.n = 3;
-    this.nn = this.n * this.n;
-    this.cellsNr = this.nn * this.nn;
+  /* ---------- storage helpers (never throw) ---------- */
+  function load(key) {
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+  }
+  function store(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignore */ }
+  }
 
-    if (this.fixCellsNr < 10) this.fixCellsNr = 10;
-    if (this.fixCellsNr > 70) this.fixCellsNr = 70;
-
-    this.init();
-
-    //counter    
-    setInterval(function () {
-        t.timer();
-    }, 1000);
-
-    return this;
-}
-
-Sudoku.prototype.init = function () {
-    this.status = this.INIT;
-    this.cellsComplete = 0;
-    this.board = [];
-    this.boardSolution = [];
-    this.cell = null;
-    this.markNotes = 0;
-    this.secondsElapsed = 0;
-
-    if (this.displayTitle == 0) {
-        $('#sudoku_title').hide();
+  /* ---------- geometry ---------- */
+  var ROW = [], COL = [], BOX = [], PEERS = [];
+  (function () {
+    for (var i = 0; i < 81; i++) {
+      ROW[i] = Math.floor(i / 9);
+      COL[i] = i % 9;
+      BOX[i] = Math.floor(ROW[i] / 3) * 3 + Math.floor(COL[i] / 3);
     }
-
-    this.board = this.boardGenerator(this.n, this.fixCellsNr);
-
-    return this;
-};
-
-Sudoku.prototype.timer = function () {
-    if (this.status === this.RUNNING) {
-        this.secondsElapsed++;
-        $('.time').text('' + this.secondsElapsed);
+    for (i = 0; i < 81; i++) {
+      PEERS[i] = [];
+      for (var j = 0; j < 81; j++) {
+        if (j !== i && (ROW[j] === ROW[i] || COL[j] === COL[i] || BOX[j] === BOX[i])) PEERS[i].push(j);
+      }
     }
-};
+  })();
 
-/**
-Shuffle array
-*/
-Sudoku.prototype.shuffle = function (array) {
-    var currentIndex = array.length,
-        temporaryValue = 0,
-        randomIndex = 0;
-
-    while (0 !== currentIndex) {
-        randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex -= 1;
-        temporaryValue = array[currentIndex];
-        array[currentIndex] = array[randomIndex];
-        array[randomIndex] = temporaryValue;
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t;
     }
+    return a;
+  }
 
-    return array;
-};
+  /* ---------- generator / solver ---------- */
+  function candidates(g, i) {
+    var used = 0, p = PEERS[i];
+    for (var k = 0; k < p.length; k++) if (g[p[k]]) used |= 1 << g[p[k]];
+    return (~used) & 0x3FE; // bits 1..9
+  }
 
-/**
-Generate the sudoku board
-*/
-Sudoku.prototype.boardGenerator = function (n, fixCellsNr) {
-    var matrix_fields = [],
-        index = 0,
-        i = 0,
-        j = 0,
-        j_start = 0,
-        j_stop = 0;
-
-    //generate solution
-    this.boardSolution = [];
-
-    //shuffle matrix indexes
-    for (i = 0; i < this.nn; i++) {
-        matrix_fields[i] = i + 1;
+  function fillGrid(g) {
+    var best = -1, bestMask = 0, bestCount = 10;
+    for (var i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      var m = candidates(g, i), c = popcount(m);
+      if (c < bestCount) { best = i; bestMask = m; bestCount = c; if (c === 0) return false; }
     }
+    if (best < 0) return true;
+    var digits = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    for (var d = 0; d < 9; d++) {
+      if (bestMask & (1 << digits[d])) {
+        g[best] = digits[d];
+        if (fillGrid(g)) return true;
+      }
+    }
+    g[best] = 0;
+    return false;
+  }
 
-    //shuffle sudoku 'collors'
-    matrix_fields = this.shuffle(matrix_fields);
-    for (i = 0; i < n * n; i++) {
-        for (j = 0; j < n * n; j++) {
-            var value = Math.floor((i * n + i / n + j) % (n * n) + 1);
-            this.boardSolution[index] = value;
-            index++;
+  function popcount(m) { var c = 0; while (m) { m &= m - 1; c++; } return c; }
+
+  function countSolutions(g, limit) {
+    var best = -1, bestMask = 0, bestCount = 10;
+    for (var i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      var m = candidates(g, i), c = popcount(m);
+      if (c < bestCount) { best = i; bestMask = m; bestCount = c; if (c === 0) return 0; }
+    }
+    if (best < 0) return 1;
+    var total = 0;
+    for (var d = 1; d <= 9; d++) {
+      if (bestMask & (1 << d)) {
+        g[best] = d;
+        total += countSolutions(g, limit - total);
+        if (total >= limit) break;
+      }
+    }
+    g[best] = 0;
+    return total;
+  }
+
+  function carve(target) {
+    var solution = new Array(81).fill(0);
+    fillGrid(solution);
+    var puzzle = solution.slice();
+    var givens = 81, k, a, b, va, vb;
+    // first pass: symmetric pairs (nicer looking boards)
+    var order = shuffle(Array.from({ length: 41 }, function (_, i) { return i; }));
+    for (k = 0; k < order.length && givens > target; k++) {
+      a = order[k]; b = 80 - a; va = puzzle[a]; vb = puzzle[b];
+      puzzle[a] = 0; puzzle[b] = 0;
+      if (countSolutions(puzzle.slice(), 2) !== 1) { puzzle[a] = va; puzzle[b] = vb; }
+      else givens -= (a === b ? 1 : 2);
+    }
+    // second pass: single cells, to reach harder targets
+    order = shuffle(Array.from({ length: 81 }, function (_, i) { return i; }));
+    for (k = 0; k < 81 && givens > target; k++) {
+      a = order[k]; if (!puzzle[a]) continue;
+      va = puzzle[a]; puzzle[a] = 0;
+      if (countSolutions(puzzle.slice(), 2) !== 1) puzzle[a] = va; else givens--;
+    }
+    return { puzzle: puzzle, solution: solution, givens: givens };
+  }
+
+  function generate(diffKey) {
+    var target = DIFFS[diffKey].givens, best = null;
+    for (var tries = 0; tries < 8; tries++) {
+      var g = carve(target);
+      if (!best || g.givens < best.givens) best = g;
+      if (best.givens <= target) break;
+    }
+    return best;
+  }
+
+  /* ---------- state ---------- */
+  var S = null;          // current game
+  var sel = -1;          // selected cell
+  var notesMode = false;
+  var undoStack = [];
+  var lastTick = 0;
+
+  function newGame(diffKey) {
+    var g = generate(diffKey);
+    S = {
+      diff: diffKey,
+      given: g.puzzle.map(function (v) { return v > 0; }),
+      vals: g.puzzle.slice(),
+      notes: new Array(81).fill(0),
+      solution: g.solution,
+      elapsed: 0,
+      won: false
+    };
+    undoStack = [];
+    sel = -1;
+    for (var i = 0; i < 81; i++) if (!S.given[i]) { sel = i; break; }
+    store(KEY_DIFF, diffKey);
+    save();
+    renderAll();
+  }
+
+  function save() { if (S) store(KEY_SAVE, S); }
+
+  function restore() {
+    var s = load(KEY_SAVE);
+    if (!s || !s.vals || s.vals.length !== 81 || !DIFFS[s.diff]) return false;
+    S = s;
+    sel = -1;
+    return true;
+  }
+
+  /* ---------- DOM ---------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $('app'), boardEl = $('board'), numsEl = $('nums');
+  var cells = [], numBtns = [];
+
+  function buildBoard() {
+    var boxes = [];
+    for (var b = 0; b < 9; b++) {
+      var box = document.createElement('div');
+      box.className = 'box';
+      boardEl.appendChild(box);
+      boxes.push(box);
+    }
+    // append cells in box order so each box holds its 3x3 cells
+    var byBox = [[], [], [], [], [], [], [], [], []];
+    for (var i = 0; i < 81; i++) byBox[BOX[i]].push(i);
+    for (b = 0; b < 9; b++) {
+      for (var k = 0; k < 9; k++) {
+        var idx = byBox[b][k];
+        var c = document.createElement('div');
+        c.className = 'cell';
+        c.dataset.i = idx;
+        c.setAttribute('role', 'gridcell');
+        var v = document.createElement('span');
+        v.className = 'v';
+        var n = document.createElement('div');
+        n.className = 'notes';
+        for (var d = 1; d <= 9; d++) {
+          var s = document.createElement('span');
+          s.textContent = d;
+          n.appendChild(s);
         }
+        c.appendChild(v);
+        c.appendChild(n);
+        boxes[b].appendChild(c);
+        cells[idx] = c;
+      }
     }
-
-    //shuffle sudokus indexes of bands on horizontal and vertical
-    var blank_indexes = [];
-    for (i = 0; i < this.n; i++) {
-        blank_indexes[i] = i + 1;
+    for (var d2 = 1; d2 <= 9; d2++) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn num';
+      btn.dataset.n = d2;
+      btn.innerHTML = '<span class="d">' + d2 + '</span><span class="left"></span>';
+      numsEl.appendChild(btn);
+      numBtns[d2] = btn;
     }
+  }
 
+  function conflicts() {
+    var bad = new Array(81).fill(false);
+    for (var i = 0; i < 81; i++) {
+      var v = S.vals[i];
+      if (!v) continue;
+      var p = PEERS[i];
+      for (var k = 0; k < p.length; k++) if (S.vals[p[k]] === v) { bad[i] = true; break; }
+    }
+    return bad;
+  }
 
-    //shuffle sudokus bands horizontal
-    var bands_horizontal_indexes = this.shuffle(blank_indexes);
-    var board_solution_tmp = [];
-    index = 0;
-    for (i = 0; i < bands_horizontal_indexes.length; i++) {
-        j_start = (bands_horizontal_indexes[i] - 1) * this.n * this.nn;
-        j_stop = bands_horizontal_indexes[i] * this.n * this.nn;
-
-        for (j = j_start; j < j_stop; j++) {
-            board_solution_tmp[index] = this.boardSolution[j];
-            index++;
+  function renderAll() {
+    var bad = conflicts();
+    var selVal = sel >= 0 ? S.vals[sel] : 0;
+    var counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    var filled = 0;
+    for (var i = 0; i < 81; i++) {
+      var c = cells[i], v = S.vals[i];
+      if (v) { filled++; if (!bad[i]) counts[v]++; }
+      var cls = 'cell';
+      if (S.given[i]) cls += ' given';
+      else if (v) cls += ' user';
+      if (bad[i]) cls += ' bad';
+      if (sel >= 0) {
+        if (i === sel) cls += ' sel';
+        else if (ROW[i] === ROW[sel] || COL[i] === COL[sel] || BOX[i] === BOX[sel]) cls += ' peer';
+        if (selVal && v === selVal && i !== sel) cls += ' same';
+      }
+      if (c.className !== cls) c.className = cls;
+      var vs = c.firstChild;
+      var txt = v ? String(v) : '';
+      if (vs.textContent !== txt) vs.textContent = txt;
+      var notes = v ? 0 : S.notes[i];
+      if (c._notes !== notes || c._hl !== selVal) {
+        c._notes = notes; c._hl = selVal;
+        var ns = c.lastChild.children;
+        for (var d = 1; d <= 9; d++) {
+          var on = (notes >> d) & 1;
+          ns[d - 1].className = on ? (d === selVal ? 'on hl' : 'on') : '';
         }
+      }
     }
-    this.boardSolution = board_solution_tmp;
-
-
-    //shuffle sudokus bands vertical
-    var bands_vertical_indexes = this.shuffle(blank_indexes);
-    board_solution_tmp = [];
-    index = 0;
-    for (k = 0; k < this.nn; k++) {
-        for (i = 0; i < this.n; i++) {
-            j_start = (bands_vertical_indexes[i] - 1) * this.n;
-            j_stop = bands_vertical_indexes[i] * this.n;
-
-            for (j = j_start; j < j_stop; j++) {
-                board_solution_tmp[index] = this.boardSolution[j + (k * this.nn)];
-                index++;
-            }
-        }
+    for (var n = 1; n <= 9; n++) {
+      var left = 9 - counts[n];
+      numBtns[n].lastChild.textContent = left > 0 ? left : '';
+      numBtns[n].classList.toggle('done', left <= 0);
+      var noteOn = notesMode && sel >= 0 && !S.vals[sel] && ((S.notes[sel] >> n) & 1);
+      numBtns[n].classList.toggle('noted', !!noteOn);
     }
-    this.boardSolution = board_solution_tmp;
+    $('filled').textContent = filled + '/81';
+    $('diffLabel').textContent = DIFFS[S.diff].name;
+    $('notesBtn').classList.toggle('active', notesMode);
+    $('notesBtn').setAttribute('aria-pressed', notesMode ? 'true' : 'false');
+    $('notesState').textContent = notesMode ? 'On' : 'Off';
+    app.classList.toggle('notes-mode', notesMode);
+    $('undoBtn').disabled = undoStack.length === 0 || S.won;
+    renderTime();
+  }
 
-    //shuffle sudokus lines on each bands horizontal
-    //TO DO
+  function fmt(sec) {
+    sec = Math.floor(sec);
+    var h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+    return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function renderTime() { $('time').textContent = fmt(S.elapsed); }
 
-    //shuffle sudokus columns on each bands vertical
-    //TO DO
+  /* ---------- actions ---------- */
+  function snapshot() { undoStack.push({ vals: S.vals.slice(), notes: S.notes.slice(), sel: sel }); if (undoStack.length > 300) undoStack.shift(); }
 
-    //board init
-    var board_indexes = [],
-        board_init = [];
+  function select(i) {
+    if (i < 0 || i > 80) return;
+    sel = i;
+    renderAll();
+  }
 
-    //shuffle board indexes and cut empty cells    
-    for (i = 0; i < this.boardSolution.length; i++) {
-        board_indexes[i] = i;
-        board_init[i] = 0;
-    }
-
-    board_indexes = this.shuffle(board_indexes);
-    board_indexes = board_indexes.slice(0, this.fixCellsNr);
-
-    //build the init board    
-    for (i = 0; i < board_indexes.length; i++) {
-        board_init[board_indexes[i]] = this.boardSolution[board_indexes[i]];
-        if (parseInt(board_init[board_indexes[i]]) > 0) {
-            this.cellsComplete++;
-        }
-    }
-
-    return (this.displaySolutionOnly) ? this.boardSolution : board_init;
-};
-
-/**
-Draw sudoku board in the specified container
-*/
-Sudoku.prototype.drawBoard = function () {
-    var index = 0,
-        position = { x: 0, y: 0 },
-        group_position = { x: 0, y: 0 };
-
-    var sudoku_board = $('<div></div>').addClass('sudoku_board');
-    var sudoku_statistics = $('<div></div>')
-        .addClass('statistics')
-        .html('<b>Cells:</b> <span class="cells_complete">' + this.cellsComplete + '/' + this.cellsNr + '</span> <b>Time:</b> <span class="time">' + this.secondsElapsed + '</span>');
-
-    $('#' + this.id).empty();
-
-    //draw board 
-    for (i = 0; i < this.nn; i++) {
-        for (j = 0; j < this.nn; j++) {
-            position = { x: i + 1, y: j + 1 };
-            group_position = { x: Math.floor((position.x - 1) / this.n), y: Math.floor((position.y - 1) / this.n) };
-
-            var value = (this.board[index] > 0 ? this.board[index] : ''),
-                value_solution = (this.boardSolution[index] > 0 ? this.boardSolution[index] : ''),
-                cell = $('<div></div>')
-                    .addClass('cell')
-                    .attr('x', position.x)
-                    .attr('y', position.y)
-                    .attr('gr', group_position.x + '' + group_position.y)
-                    .html('<span>' + value + '</span>');
-
-            if (this.displaySolution) {
-                $('<span class="solution">(' + value_solution + ')</span>').appendTo(cell);
-            }
-
-            if (value > 0) {
-                cell.addClass('fix');
-            }
-
-            if (position.x % this.n === 0 && position.x != this.nn) {
-                cell.addClass('border_h');
-            }
-
-            if (position.y % this.n === 0 && position.y != this.nn) {
-                cell.addClass('border_v');
-            }
-
-            cell.appendTo(sudoku_board);
-            index++;
-        }
-    }
-
-    sudoku_board.appendTo('#' + this.id);
-
-    //draw console
-    var sudoku_console_cotainer = $('<div></div>').addClass('board_console_container');
-    var sudoku_console = $('<div></div>').addClass('board_console');
-
-    for (i = 1; i <= this.nn; i++) {
-        $('<div></div>').addClass('num').text(i).appendTo(sudoku_console);
-    }
-    $('<div></div>').addClass('num remove').text('X').appendTo(sudoku_console);
-    $('<div></div>').addClass('num note').text('?').appendTo(sudoku_console);
-
-    //draw gameover
-    var sudoku_gameover = $('<div class="gameover_container"><div class="gameover">Congratulations! <button class="restart">Play Again</button></div></div>');
-
-    //add all to sudoku container
-    sudoku_console_cotainer.appendTo('#' + this.id).hide();
-    sudoku_console.appendTo(sudoku_console_cotainer);
-    sudoku_statistics.appendTo('#' + this.id);
-    sudoku_gameover.appendTo('#' + this.id).hide();
-
-    //adjust size
-    this.resizeWindow();
-};
-
-Sudoku.prototype.resizeWindow = function () {
-    console.time("resizeWindow");
-
-    var screen = { w: $(window).width(), h: $(window).height() };
-
-    //adjust the board
-    var b_pos = $('#' + this.id + ' .sudoku_board').offset(),
-        b_dim = { w: $('#' + this.id + ' .sudoku_board').width(), h: $('#' + this.id + ' .sudoku_board').height() },
-        s_dim = { w: $('#' + this.id + ' .statistics').width(), h: $('#' + this.id + ' .statistics').height() };
-
-    var screen_wr = screen.w + s_dim.h + b_pos.top + 10;
-
-    if (screen_wr > screen.h) {
-        $('#' + this.id + ' .sudoku_board').css('width', (screen.h - b_pos.top - s_dim.h - 16));
-        $('#' + this.id + ' .board_console').css('width', (b_dim.h / 2));
+  function input(d) {
+    if (!S || S.won || sel < 0 || S.given[sel]) return;
+    if (notesMode) {
+      snapshot();
+      if (S.vals[sel]) { S.vals[sel] = 0; S.notes[sel] = 0; }
+      S.notes[sel] ^= (1 << d);
     } else {
-        $('#' + this.id + ' .sudoku_board').css('width', '98%');
-        $('#' + this.id + ' .board_console').css('width', '50%');
+      snapshot();
+      if (S.vals[sel] === d) {
+        S.vals[sel] = 0;
+      } else {
+        S.vals[sel] = d;
+        S.notes[sel] = 0;
+        var clash = false, p = PEERS[sel];
+        for (var k = 0; k < p.length; k++) if (S.vals[p[k]] === d) { clash = true; break; }
+        if (!clash) for (k = 0; k < p.length; k++) S.notes[p[k]] &= ~(1 << d);
+      }
     }
+    afterChange();
+  }
 
-    var cell_width = $('#' + this.id + ' .sudoku_board .cell:first').width(),
-        note_with = Math.floor(cell_width / 2) - 1;
+  function erase() {
+    if (!S || S.won || sel < 0 || S.given[sel]) return;
+    if (!S.vals[sel] && !S.notes[sel]) return;
+    snapshot();
+    S.vals[sel] = 0;
+    S.notes[sel] = 0;
+    afterChange();
+  }
 
-    $('#' + this.id + ' .sudoku_board .cell').height(cell_width);
-    $('#' + this.id + ' .sudoku_board .cell span').css('line-height', cell_width + 'px');
-    $('#' + this.id + ' .sudoku_board .cell .note').css({ 'line-height': note_with + 'px', 'width': note_with, 'height': note_with });
+  function undo() {
+    if (!S || S.won || !undoStack.length) return;
+    var u = undoStack.pop();
+    S.vals = u.vals; S.notes = u.notes; sel = u.sel;
+    afterChange();
+  }
 
-    //adjust the console
-    var console_cell_width = $('#' + this.id + ' .board_console .num:first').width();
-    $('#' + this.id + ' .board_console .num').css('height', console_cell_width);
-    $('#' + this.id + ' .board_console .num').css('line-height', console_cell_width + 'px');
+  function toggleNotes() { notesMode = !notesMode; renderAll(); }
 
-    //adjust console
-    b_dim = { w: $('#' + this.id + ' .sudoku_board').width(), h: $('#' + this.id + ' .sudoku_board').width() };
-    b_pos = $('#' + this.id + ' .sudoku_board').offset();
-    c_dim = { w: $('#' + this.id + ' .board_console').width(), h: $('#' + this.id + ' .board_console').height() };
+  function afterChange() {
+    renderAll();
+    checkWin();
+    save();
+  }
 
-    var c_pos_new = { left: (b_dim.w / 2 - c_dim.w / 2 + b_pos.left), top: (b_dim.h / 2 - c_dim.h / 2 + b_pos.top) };
-    $('#' + this.id + ' .board_console').css({ 'left': c_pos_new.left, 'top': c_pos_new.top });
+  function checkWin() {
+    for (var i = 0; i < 81; i++) if (!S.vals[i]) return;
+    var bad = conflicts();
+    for (i = 0; i < 81; i++) if (bad[i]) return;
+    S.won = true;
+    var best = load(KEY_BEST) || {};
+    var prev = best[S.diff];
+    var isBest = !prev || S.elapsed < prev;
+    if (isBest) { best[S.diff] = Math.floor(S.elapsed); store(KEY_BEST, best); }
+    sel = -1;
+    renderAll();
+    app.classList.add('won');
+    setTimeout(function () { showDialog('win', isBest, prev); }, 900);
+  }
 
-    //adjust the gameover container
-    var gameover_pos_new = { left: (screen.w / 20), top: (screen.w / 20 + b_pos.top) };
-
-    $('#' + this.id + ' .gameover').css({ 'left': gameover_pos_new.left, 'top': gameover_pos_new.top });
-
-    console.log('screen', screen);
-    console.timeEnd("resizeWindow");
-};
-
-/**
-Show console
-*/
-Sudoku.prototype.showConsole = function (cell) {
-    $('#' + this.id + ' .board_console_container').show();
-
-    var
-        t = this,
-        oldNotes = $(this.cell).find('.note');
-
-    //init
-    $('#' + t.id + ' .board_console .num').removeClass('selected');
-
-    //mark buttons
-    if (t.markNotes) {
-        //select markNote button  
-        $('#' + t.id + ' .board_console .num.note').addClass('selected');
-
-        //select buttons
-        $.each(oldNotes, function () {
-            var noteNum = $(this).text();
-            $('#' + t.id + ' .board_console .num:contains(' + noteNum + ')').addClass('selected');
-        });
-    }
-
-    return this;
-};
-
-/**
-Hide console
-*/
-Sudoku.prototype.hideConsole = function (cell) {
-    $('#' + this.id + ' .board_console_container').hide();
-    return this;
-};
-
-/**
-Select cell and prepare it for input from sudoku board console
-*/
-Sudoku.prototype.cellSelect = function (cell) {
-    this.cell = cell;
-
-    var value = $(cell).text() | 0,
-        position = { x: $(cell).attr('x'), y: $(cell).attr('y') },
-        group_position = { x: Math.floor((position.x - 1) / 3), y: Math.floor((position.y - 1) / 3) },
-        horizontal_cells = $('#' + this.id + ' .sudoku_board .cell[x="' + position.x + '"]'),
-        vertical_cells = $('#' + this.id + ' .sudoku_board .cell[y="' + position.y + '"]'),
-        group_cells = $('#' + this.id + ' .sudoku_board .cell[gr="' + group_position.x + '' + group_position.y + '"]'),
-        same_value_cells = $('#' + this.id + ' .sudoku_board .cell span:contains(' + value + ')');
-
-    //remove all other selections
-    $('#' + this.id + ' .sudoku_board .cell').removeClass('selected current group');
-    $('#' + this.id + ' .sudoku_board .cell span').removeClass('samevalue');
-    //select current cell
-    $(cell).addClass('selected current');
-
-    //highlight select cells
-    if (this.highlight > 0) {
-        horizontal_cells.addClass('selected');
-        vertical_cells.addClass('selected');
-        group_cells.addClass('selected group');
-        same_value_cells.not($(cell).find('span')).addClass('samevalue');
-    }
-
-    if ($(this.cell).hasClass('fix')) {
-        $('#' + this.id + ' .board_console .num').addClass('no');
+  /* ---------- dialog ---------- */
+  var overlay = $('overlay');
+  function showDialog(kind, isBest, prev) {
+    var title = $('dlgTitle'), text = $('dlgText'), res = $('dlgResult'), close = $('dlgClose');
+    var choices = overlay.querySelectorAll('.choice');
+    for (var i = 0; i < choices.length; i++) choices[i].classList.toggle('current', choices[i].dataset.diff === S.diff);
+    if (kind === 'win') {
+      title.textContent = 'Puzzle solved!';
+      text.textContent = 'Pick a difficulty for your next puzzle.';
+      var best = load(KEY_BEST) || {};
+      res.hidden = false;
+      res.innerHTML =
+        '<div><span>Difficulty</span><b>' + DIFFS[S.diff].name + '</b></div>' +
+        '<div><span>Time</span><b>' + fmt(S.elapsed) + '</b></div>' +
+        '<div><span>Best</span><b>' + (best[S.diff] != null ? fmt(best[S.diff]) : '–') + '</b></div>' +
+        (isBest ? '<p class="newbest">' + (prev ? 'New best time!' : 'First win at this level!') + '</p>' : '');
+      close.textContent = 'View Board';
     } else {
-        $('#' + this.id + ' .board_console .num').removeClass('no');
-
-        this.showConsole();
-        this.resizeWindow();
+      title.textContent = 'New Game';
+      var inProgress = !S.won && S.vals.some(function (v, i) { return v && !S.given[i]; });
+      text.textContent = inProgress ? 'Choose a difficulty. Your current puzzle will be replaced.' : 'Choose a difficulty.';
+      res.hidden = true;
+      close.textContent = S.won ? 'Close' : 'Keep Playing';
     }
-};
+    overlay.hidden = false;
+  }
+  function hideDialog() { overlay.hidden = true; }
 
-/**
-Add value from sudoku console to selected board cell
-*/
-Sudoku.prototype.addValue = function (value) {
-    console.log('prepare for addValue', value);
-
-    var
-        position = { x: $(this.cell).attr('x'), y: $(this.cell).attr('y') },
-        group_position = { x: Math.floor((position.x - 1) / 3), y: Math.floor((position.y - 1) / 3) },
-
-        horizontal_cells = '#' + this.id + ' .sudoku_board .cell[x="' + position.x + '"]',
-        vertical_cells = '#' + this.id + ' .sudoku_board .cell[y="' + position.y + '"]',
-        group_cells = '#' + this.id + ' .sudoku_board .cell[gr="' + group_position.x + '' + group_position.y + '"]',
-
-        horizontal_cells_exists = $(horizontal_cells + ' span:contains(' + value + ')'),
-        vertical_cells_exists = $(vertical_cells + ' span:contains(' + value + ')'),
-        group_cells_exists = $(group_cells + ' span:contains(' + value + ')'),
-
-        horizontal_notes = horizontal_cells + ' .note:contains(' + value + ')',
-        vertical_notes = vertical_cells + ' .note:contains(' + value + ')',
-        group_notes = group_cells + ' .note:contains(' + value + ')',
-
-        old_value = parseInt($(this.cell).not('.notvalid').text()) || 0;
-
-
-    if ($(this.cell).hasClass('fix')) {
-        return;
+  overlay.addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (t && t.dataset.diff) {
+      hideDialog();
+      app.classList.remove('won');
+      notesMode = false;
+      newGame(t.dataset.diff);
+    } else if (t && t.id === 'dlgClose') {
+      hideDialog();
+    } else if (e.target === overlay) {
+      hideDialog();
     }
+  });
 
-    //delete value or write it in cell
-    $(this.cell).find('span').text((value === 0) ? '' : value);
+  /* ---------- input wiring ---------- */
+  boardEl.addEventListener('pointerdown', function (e) {
+    var c = e.target.closest('.cell');
+    if (!c || !S) return;
+    e.preventDefault();
+    if (S.won) return;
+    select(+c.dataset.i);
+  });
+  numsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.num');
+    if (b) input(+b.dataset.n);
+  });
+  $('eraseBtn').addEventListener('click', erase);
+  $('undoBtn').addEventListener('click', undo);
+  $('notesBtn').addEventListener('click', toggleNotes);
+  $('newBtn').addEventListener('click', function () { showDialog('new'); });
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-    if (this.cell !== null && (horizontal_cells_exists.length || vertical_cells_exists.length || group_cells_exists.length)) {
-        if (old_value !== value) {
-            $(this.cell).addClass('notvalid');
-        } else {
-            $(this.cell).find('span').text('');
-        }
+  document.addEventListener('keydown', function (e) {
+    if (!S) return;
+    if (!overlay.hidden) {
+      if (e.key === 'Escape') { hideDialog(); e.preventDefault(); }
+      return;
+    }
+    var k = e.key, code = e.code || '';
+    if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'Z')) { undo(); e.preventDefault(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var digit = 0;
+    var m = /^(?:Digit|Numpad)([0-9])$/.exec(code);
+    if (m) digit = +m[1];
+    else if (/^[0-9]$/.test(k)) digit = +k;
+    else digit = -1;
+    if (digit >= 1) {
+      if (e.shiftKey) { var was = notesMode; notesMode = true; input(digit); notesMode = was; renderAll(); }
+      else input(digit);
+      e.preventDefault(); return;
+    }
+    if (digit === 0 || k === 'Backspace' || k === 'Delete') { erase(); e.preventDefault(); return; }
+    var r = sel >= 0 ? ROW[sel] : 4, c = sel >= 0 ? COL[sel] : 4, moved = true;
+    if (k === 'ArrowUp' || k === 'w' || k === 'W') r = (r + 8) % 9;
+    else if (k === 'ArrowDown' || k === 's' || k === 'S') r = (r + 1) % 9;
+    else if (k === 'ArrowLeft' || k === 'a' || k === 'A') c = (c + 8) % 9;
+    else if (k === 'ArrowRight' || k === 'd' || k === 'D') c = (c + 1) % 9;
+    else moved = false;
+    if (moved) { if (!S.won) select(r * 9 + c); e.preventDefault(); return; }
+    if (k === 'n' || k === 'N' || k === ' ') { toggleNotes(); e.preventDefault(); return; }
+    if (k === 'Escape') { sel = -1; renderAll(); }
+  });
+
+  /* ---------- timer (pauses when hidden or a dialog is open) ---------- */
+  function running() { return S && !S.won && overlay.hidden && document.visibilityState !== 'hidden'; }
+  setInterval(function () {
+    var now = performance.now();
+    if (running() && lastTick) {
+      var prevSec = Math.floor(S.elapsed);
+      S.elapsed += Math.min(1, (now - lastTick) / 1000);
+      if (Math.floor(S.elapsed) !== prevSec) {
+        renderTime();
+        if (Math.floor(S.elapsed) % 5 === 0) save();
+      }
+    }
+    lastTick = now;
+  }, 250);
+  document.addEventListener('visibilitychange', function () { lastTick = performance.now(); if (document.visibilityState === 'hidden') save(); });
+  window.addEventListener('pagehide', save);
+
+  /* ---------- layout: make the board as large as possible ---------- */
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function layout() {
+    var cs = getComputedStyle(app);
+    var W = app.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var H = app.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    var gap = clamp(Math.min(W, H) * 0.02, 6, 16);
+
+    // Tall: bar / board / numbers row / tools row
+    var barT = W < 520 ? 44 : 52;
+    var bT = Math.min(W, H);
+    for (var it = 0; it < 4; it++) {
+      var nh = clamp(bT / 9 * 1.15, 44, 84), th = clamp(bT / 9 * 0.75, 44, 60);
+      bT = Math.min(W, H - barT - nh - th - gap * 3);
+    }
+    var thT = clamp(bT / 9 * 0.75, 44, 60);
+    // use spare vertical space for taller number keys
+    var nhT = clamp(H - barT - bT - thT - gap * 3, 44, 76);
+
+    // Wide: board | side panel (bar on top, 3x3 pad, tools)
+    var bW = H, sw = 0;
+    for (it = 0; it < 4; it++) {
+      sw = clamp(bW * 0.5, 210, 380);
+      bW = Math.min(H, W - sw - gap);
+    }
+    sw = clamp(bW * 0.5, 210, 380);
+    var barW = 3 * 40 + 2 * 6;
+    var thW = clamp(bW / 9 * 0.75, 44, 60);
+    var nhW = clamp(Math.min((sw - 2 * 8) / 3 * 0.85, (H - barW - thW - gap * 2 - 16) / 3), 40, 110);
+    if (bW < 0) bW = 0;
+
+    var wide = bW > bT * 1.04;
+    var board = Math.floor(wide ? bW : bT);
+    app.classList.toggle('wide', wide);
+    app.classList.toggle('tall', !wide);
+    var st = app.style;
+    var toolCol = ((wide ? clamp(W - board - gap * 1.6, 180, 400) : board) - 16) / 3;
+    app.classList.toggle('compact-tools', toolCol < 112);
+    st.setProperty('--b', board + 'px');
+    st.setProperty('--u', (board / 9).toFixed(2) + 'px');
+    st.setProperty('--gap', gap.toFixed(1) + 'px');
+    if (wide) {
+      sw = Math.floor(clamp(W - board - gap * 1.6, 180, 400));
+      st.setProperty('--sw', sw + 'px');
+      nhW = clamp(Math.min((sw - 2 * 8) / 3 * 0.85, (H - barW - thW - gap * 2 - 16) / 3), 40, 110);
+      st.setProperty('--nh', Math.floor(nhW) + 'px');
+      st.setProperty('--th', Math.floor(thW) + 'px');
+      st.setProperty('--bar', barW + 'px');
     } else {
-        //add value
-        $(this.cell).removeClass('notvalid');
-        console.log('Value added ', value);
-
-        //remove all notes from current cell,  line column and group
-        $(horizontal_notes).remove();
-        $(vertical_notes).remove();
-        $(group_notes).remove();
+      st.setProperty('--sw', board + 'px');
+      st.setProperty('--nh', Math.floor(nhT) + 'px');
+      st.setProperty('--th', Math.floor(thT) + 'px');
+      st.setProperty('--bar', barT + 'px');
     }
+  }
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', function () { setTimeout(layout, 120); });
+  if (window.ResizeObserver) new ResizeObserver(layout).observe(app);
 
-    //recalculate completed cells
-    this.cellsComplete = $('#' + this.id + ' .sudoku_board .cell:not(.notvalid) span:not(:empty)').length;
-    console.log('is game over? ', this.cellsComplete, this.cellsNr, (this.cellsComplete === this.cellsNr));
-    //game over
-    if (this.cellsComplete === this.cellsNr) {
-        this.gameOver();
+  /* ---------- boot ---------- */
+  buildBoard();
+  layout();
+  if (restore()) {
+    if (S.won) app.classList.add('won');
+    for (var i = 0; i < 81; i++) if (!S.given[i] && !S.vals[i]) { sel = i; break; }
+    renderAll();
+  } else {
+    var d = load(KEY_DIFF);
+    newGame(DIFFS[d] ? d : 'medium');
+  }
+  lastTick = performance.now();
+
+  // small hook used by automated screenshots/tests
+  window.__sudoku = {
+    state: function () { return S; },
+    select: select, input: input,
+    solveAllBut: function (n) {
+      var empties = [];
+      for (var i = 0; i < 81; i++) if (!S.given[i] && S.vals[i] !== S.solution[i]) empties.push(i);
+      for (i = 0; i < empties.length - (n || 0); i++) { S.vals[empties[i]] = S.solution[empties[i]]; S.notes[empties[i]] = 0; }
+      renderAll(); save();
+      return empties.slice(empties.length - (n || 0));
     }
-
-    $('#' + this.id + ' .statistics .cells_complete').text('' + this.cellsComplete + '/' + this.cellsNr);
-
-    return this;
-};
-
-
-/**
-Add note from sudoku console to selected board cell
-*/
-Sudoku.prototype.addNote = function (value) {
-    console.log('addNote', value);
-
-    var
-        t = this,
-        oldNotes = $(t.cell).find('.note'),
-        note_width = Math.floor($(t.cell).width() / 2);
-
-    //add note to cell
-    if (oldNotes.length < 4) {
-        $('<div></div>')
-            .addClass('note')
-            .css({ 'line-height': note_width + 'px', 'height': note_width - 1, 'width': note_width - 1 })
-            .text(value)
-            .appendTo(this.cell);
-    }
-
-    return this;
-};
-
-/**
-Remove note from sudoku console to selected board cell
-*/
-Sudoku.prototype.removeNote = function (value) {
-    if (value === 0) {
-        $(this.cell).find('.note').remove();
-    } else {
-        $(this.cell).find('.note:contains(' + value + ')').remove();
-    }
-
-    return this;
-};
-
-/**
-End game routine
-*/
-Sudoku.prototype.gameOver = function () {
-    console.log('GAME OVER!');
-    this.status = this.END;
-
-    $('#' + this.id + ' .gameover_container').show();
-};
-
-/**
-Run a new sudoku game
-*/
-Sudoku.prototype.run = function () {
-    this.status = this.RUNNING;
-
-    var t = this;
-    this.drawBoard();
-
-    //click on board cell
-    $('#' + this.id + ' .sudoku_board .cell').on('click', function (e) {
-        t.cellSelect(this);
-    });
-
-    //click on console num
-    $('#' + this.id + ' .board_console .num').on('click', function (e) {
-        var
-            value = $.isNumeric($(this).text()) ? parseInt($(this).text()) : 0,
-            clickMarkNotes = $(this).hasClass('note'),
-            clickRemove = $(this).hasClass('remove'),
-            numSelected = $(this).hasClass('selected');
-
-        if (clickMarkNotes) {
-            console.log('clickMarkNotes');
-            t.markNotes = !t.markNotes;
-
-            if (t.markNotes) {
-                $(this).addClass('selected');
-            } else {
-                $(this).removeClass('selected');
-                t.removeNote(0).showConsole();
-            }
-
-        } else {
-            if (t.markNotes) {
-                if (!numSelected) {
-                    if (!value) {
-                        t.removeNote(0).hideConsole();
-                    } else {
-                        t.addValue(0).addNote(value).hideConsole();
-                    }
-                } else {
-                    t.removeNote(value).hideConsole();
-                }
-            } else {
-                t.removeNote(0).addValue(value).hideConsole();
-            }
-        }
-    });
-
-    //click outer console
-    $('#' + this.id + ' .board_console_container').on('click', function (e) {
-        if ($(e.target).is('.board_console_container')) {
-            $(this).hide();
-        }
-    });
-
-    $(window).off('resize.sudoku').on('resize.sudoku', function () {
-        t.resizeWindow();
-    });
-};
-
-//main
-$(function () {
-    console.time("loading time");
-
-
-    //game  
-    var game = new Sudoku({
-        id: 'sudoku_container',
-        fixCellsNr: 30,
-        highlight: 1,
-        displayTitle: 1,
-        //displaySolution: 1,
-        //displaySolutionOnly: 1,
-    });
-
-    game.run();
-
-    $('#sidebar-toggle').on('click', function (e) {
-        $('#sudoku_menu').toggleClass("open-sidebar");
-    });
-
-    //restart game (delegated: the board is redrawn on every new game)
-    $('#' + game.id).on('click', '.restart', function () {
-        game.init().run();
-    });
-
-    $('#sudoku_menu .restart').on('click', function () {
-        game.init().run();
-        $('#sudoku_menu').removeClass('open-sidebar');
-    });
-
-    console.timeEnd("loading time");
-});
+  };
+})();

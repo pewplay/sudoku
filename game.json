@@ -1,32 +1,49 @@
 {
   "$schema": "https://raw.githubusercontent.com/pewplay/pewplay/main/schema/game.schema.json",
   "title": "Sudoku",
-  "description": "Fill the 9×9 grid so every row, column and box holds the digits 1 to 9 in this clean, free Sudoku puzzle you play in your browser.",
-  "about": "Sudoku is the classic number logic puzzle, here in a clean and distraction-free version. Every game deals a fresh 9×9 board with 30 given digits, and your job is to fill the remaining 51 cells so that each row, each column and each 3×3 box contains the numbers 1 to 9 exactly once.\n\nTap a cell to open the number pad and pick a digit. The board highlights the row, column and box of the selected cell and shows matching numbers in blue, while a digit that clashes with another one turns red straight away. Pencil mode lets you jot up to four candidate numbers in a cell before you commit, and a counter tracks filled cells and elapsed seconds.\n\nIt is a relaxing way to train your logic for a few minutes, whether you are new to Sudoku or solve one every morning.",
-  "howToPlay": "Select an empty cell and choose a number from the pad that appears. Each row, column and 3×3 box must contain the digits 1 to 9 with no repeats; conflicting numbers are shown in red. Fill all 81 cells without conflicts to complete the puzzle.",
+  "description": "Fill the 9×9 grid so every row, column and box holds the digits 1 to 9 in this clean, free Sudoku with four difficulty levels.",
+  "about": "Sudoku is the classic number logic puzzle, here in a clean and distraction-free version that fills your whole screen. Every game deals a freshly generated 9×9 puzzle with exactly one solution, at the difficulty you choose: Easy, Medium, Hard or Expert. Your job is to fill the empty cells so that each row, each column and each 3×3 box contains the numbers 1 to 9 exactly once.\n\nTap a cell and pick a digit on the big number pad, or just type on your keyboard. The board highlights the row, column and box of the selected cell and every matching number, and any digit that clashes with another one turns red straight away. Notes mode lets you pencil in candidates, placing a digit clears it from the notes around it, and Undo takes back any move. The pad shows how many of each digit are still missing, the timer tracks your solve, and your best time for each level is saved.\n\nYour puzzle is saved automatically, so you can close the page and carry on later. It is a relaxing way to train your logic for a few minutes, whether you are new to Sudoku or solve one every morning.",
+  "howToPlay": "Select an empty cell and choose a number on the pad (or type 1–9). Each row, column and 3×3 box must contain the digits 1 to 9 with no repeats; conflicting numbers are shown in red. Switch on Notes to jot candidates in a cell. Fill all 81 cells without conflicts to solve the puzzle, then pick a difficulty for the next one.",
   "controls": [
     {
       "input": "Click / Tap cell",
-      "action": "Select a cell and open the number pad"
+      "action": "Select a cell"
     },
     {
-      "input": "Pad 1–9",
-      "action": "Place a number in the selected cell"
+      "input": "Number pad / 1–9",
+      "action": "Place a number in the selected cell (again to remove it)"
     },
     {
-      "input": "Pad X",
-      "action": "Clear the cell"
+      "input": "Arrow keys",
+      "action": "Move the selection"
     },
     {
-      "input": "Pad ?",
-      "action": "Toggle pencil mode for notes"
+      "input": "Notes / N",
+      "action": "Toggle notes mode for pencil marks"
+    },
+    {
+      "input": "Shift + 1–9",
+      "action": "Toggle a note without switching mode"
+    },
+    {
+      "input": "Erase / Delete / Backspace / 0",
+      "action": "Clear the selected cell"
+    },
+    {
+      "input": "Undo / Ctrl+Z",
+      "action": "Undo the last move"
+    },
+    {
+      "input": "New Game",
+      "action": "Start a new puzzle and choose the difficulty"
     }
   ],
   "tips": [
     "Start with rows, columns or boxes that already have many digits: the missing ones are easier to find.",
-    "Watch the blue highlights after selecting a cell to see where a number already appears.",
-    "Use pencil mode to note two or three candidates in tricky cells instead of guessing.",
-    "A red cell means the number clashes with another one in its row, column or box, so fix it before moving on."
+    "Select a number already on the board to see every place it appears, highlighted in blue.",
+    "The small counter on each pad key shows how many of that digit are still missing.",
+    "Use notes to mark two or three candidates in tricky cells instead of guessing; placing a digit removes it from nearby notes.",
+    "A red number clashes with another one in its row, column or box, so fix it before moving on."
   ],
   "faq": [
     {
@@ -35,11 +52,15 @@
     },
     {
       "question": "Can I play Sudoku on my phone or tablet?",
-      "answer": "Yes. The board scales to fit the screen and you play entirely by tapping cells and the on-screen number pad."
+      "answer": "Yes. The board fills the screen in portrait or landscape and you play entirely by tapping cells and the large on-screen number pad, with no keyboard needed."
     },
     {
       "question": "Do I get a new puzzle every time?",
-      "answer": "Yes. Each game generates a new board with 30 starting digits, and the Play Again button deals a fresh one when you finish."
+      "answer": "Yes. Each game generates a new puzzle with a single solution at the difficulty you pick: Easy, Medium, Hard or Expert."
+    },
+    {
+      "question": "Is my progress saved?",
+      "answer": "Yes. The current puzzle, your notes and the timer are saved in your browser, along with your best time for each difficulty."
     }
   ],
   "category": "Puzzle",
@@ -56,6 +77,7 @@
   "cover": "cover.png",
   "screenshots": [
     "screenshots/1.png",
-    "screenshots/2.png"
+    "screenshots/2.png",
+    "screenshots/3.png"
   ]
 }
